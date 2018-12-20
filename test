@@ -1,0 +1,460 @@
+with lost_unions as
+       (
+         with lost1 as
+           (
+           select ae.event_loggable_id,
+                  sm.name,
+                  sm.admin_id,
+                  ae.event_attribute,
+                  ae.old_value,
+                  ae.value,
+                  ae.created_at
+               ,
+                  sm.google_status,
+                  sm.google_owner,
+                  sm.order_online_status,
+                  sm.order_online_owner,
+                  sm.status
+           from mypizza.admin_events ae
+                  join mypizza.shop_master sm on ae.event_loggable_id = sm.shop_id
+             and sm.google_owner <> 'slice'
+
+           where ae.event_loggable_type = 'Shop'
+             and ae.event_attribute = 'google_owner'
+             and ae.value <> 'slice'
+             and ae.old_value = 'slice'
+             and not (ae.value in ('own', 'franchise') and sm.order_online_status = 'button_live')
+             and ae.created_at between date_trunc('week', getdate() - interval '1 week')
+             and date_trunc('week', getdate() - interval '0 week')
+           --and sm.status ='yes'
+           ) -- not slice (but also not own w/ button_live)
+           , lost2 as
+           (
+           select ae.event_loggable_id,
+                  sm.name,
+                  sm.admin_id,
+                  ae.event_attribute,
+                  ae.old_value,
+                  ae.value,
+                  ae.created_at
+               ,
+                  sm.google_status,
+                  sm.google_owner,
+                  sm.order_online_status,
+                  sm.order_online_owner,
+                  sm.status
+
+           from mypizza.admin_events ae
+                  join mypizza.shop_master sm on ae.event_loggable_id = sm.shop_id
+             and (sm.google_owner = 'slice' and sm.google_status <> 'verified')
+
+           where ae.event_loggable_type = 'Shop'
+             and ae.event_attribute = 'google_status'
+             and ae.value <> 'verified'
+             and ae.old_value = 'verified'
+             and ae.created_at between date_trunc('week', getdate() - interval '1 week')
+             and date_trunc('week', getdate() - interval '0 week')
+           --and sm.status = 'yes'
+           ) -- not verified on slice
+           , lost3 as
+           (
+           select ae.event_loggable_id,
+                  sm.name,
+                  sm.admin_id,
+                  ae.event_attribute,
+                  ae.old_value,
+                  ae.value,
+                  ae.created_at
+               ,
+                  sm.google_status,
+                  sm.google_owner,
+                  sm.order_online_status,
+                  sm.order_online_owner,
+                  sm.status
+           from mypizza.admin_events ae
+                  join mypizza.shop_master sm on ae.event_loggable_id = sm.shop_id
+             and (sm.google_owner in ('own', 'franchise') and sm.order_online_status <> 'button_live')
+
+           where ae.event_loggable_type = 'Shop'
+             and ae.event_attribute = 'order_online_status'
+             and ae.value <> 'button_live'
+             and ae.old_value = 'button_live'
+             and ae.created_at between date_trunc('week', getdate() - interval '1 week')
+             and date_trunc('week', getdate() - interval '0 week')
+           --and sm.status = 'yes'
+           ) -- button_live lost
+           , lost4 as
+           (
+           select ae.event_loggable_id,
+                  sm.name,
+                  sm.admin_id,
+                  ae.event_attribute,
+                  ae.old_value,
+                  ae.value,
+                  ae.created_at
+               ,
+                  sm.google_status,
+                  sm.google_owner,
+                  sm.order_online_status,
+                  sm.order_online_owner,
+                  sm.status
+           from mypizza.admin_events ae
+                  join mypizza.shop_master sm on ae.event_loggable_id = sm.shop_id
+             and (sm.google_owner not in ('own', 'franchise') and sm.order_online_status = 'button_live')
+
+           where ae.event_loggable_type = 'Shop'
+             and ae.event_attribute = 'google_owner'
+             and ae.value not in ('own', 'franchise')
+             and ae.old_value in ('own', 'franchise')
+             and not (ae.value = 'slice' and sm.google_status = 'verified')
+             and ae.created_at between date_trunc('week', getdate() - interval '1 week')
+             and date_trunc('week', getdate() - interval '0 week')
+           --and sm.status = 'yes'
+           ) -- not own w/ button_live (but also not slice+verified)
+           , lost5 as
+           (
+           with one AS
+             (
+             select ae.event_loggable_id
+             from mypizza.admin_events ae
+             where ae.event_loggable_type = 'Shop'
+               and ae.event_attribute = 'google_status'
+               and ae.value = ''
+               and ae.old_value = 'verified'
+               and ae.created_at between date_trunc('week', getdate() - interval '1 week')
+               and date_trunc('week', getdate() - interval '0 week')
+             )
+             SELECT ae.event_loggable_id,
+                    sm.name,
+                    sm.admin_id,
+                    ae.event_attribute,
+                    ae.old_value,
+                    ae.value,
+                    ae.created_at
+                 ,
+                    sm.google_status,
+                    sm.google_owner,
+                    sm.order_online_status,
+                    sm.order_online_owner,
+                    sm.status
+             from mypizza.admin_events ae
+                    join mypizza.shop_master sm on ae.event_loggable_id = sm.shop_id
+
+             where ae.event_loggable_type = 'Shop'
+               and ae.event_attribute = 'google_owner'
+               and ae.value = ''
+               and ae.old_value = 'slice'
+               and ae.created_at between date_trunc('week', getdate() - interval '1 week')
+               and date_trunc('week', getdate() - interval '0 week')
+               and sm.status = 'no'
+               and sm.shop_id in (SELECT * FROM one)
+           )
+           , lost6 as
+           (
+           with one AS
+             (
+             select ae.event_loggable_id
+             from mypizza.admin_events ae
+             where ae.event_loggable_type = 'Shop'
+               and ae.event_attribute = 'order_online_status'
+               and ae.value = ''
+               and ae.old_value = 'button_live'
+               and ae.created_at between date_trunc('week', getdate() - interval '1 week')
+               and date_trunc('week', getdate() - interval '0 week')
+             )
+             SELECT ae.event_loggable_id,
+                    sm.name,
+                    sm.admin_id,
+                    ae.event_attribute,
+                    ae.old_value,
+                    ae.value,
+                    ae.created_at
+                 ,
+                    sm.google_status,
+                    sm.google_owner,
+                    sm.order_online_status,
+                    sm.order_online_owner,
+                    sm.status
+             from mypizza.admin_events ae
+                    join mypizza.shop_master sm on ae.event_loggable_id = sm.shop_id
+
+             where ae.event_loggable_type = 'Shop'
+               and ae.event_attribute = 'google_owner'
+               and ae.value = ''
+               and ae.old_value in ('own', 'franchise')
+               and ae.created_at between date_trunc('week', getdate() - interval '1 week')
+               and date_trunc('week', getdate() - interval '0 week')
+               and sm.status = 'no'
+               and sm.shop_id in (SELECT * FROM one)
+           )
+           select *
+           from lost1
+           union all
+           select *
+           from lost2
+           union all
+           select *
+           from lost3
+           union all
+           select *
+           from lost4
+           union all
+           select *
+           from lost5
+           union all
+           select *
+           from lost6
+       )
+    ,
+     lost_row_num as
+       (
+         select u.*,
+                a.first_name
+             ,
+                row_number() over (partition by u.event_loggable_id order by u.created_at desc) as rn
+         from lost_unions u
+                join mypizza.admins a on u.admin_id = a.id
+           and u.admin_id not in
+               (209, 756, 151, 765, 646, 687, 762, 350, 761, 598, 408, 204, 505, 373, 430, 396, 197, 730, 429, 600, 257,
+                507, 153, 375, 731, 404, 363, 41, 527, 602, 780, 781)
+       )
+select l.event_loggable_id,
+       l.event_attribute,
+       l.name,
+       l.first_name,
+       case
+         when l.status = 'yes' and l.event_attribute in ('google_owner', 'google_status')
+           and (l.google_owner <> 'slice' or l.google_Status <> 'verified') then 'GMB'
+         when l.status = 'yes' and (l.event_attribute = 'google_owner' and (l.google_owner not in ('own', 'franchise'))
+           or (l.event_attribute = 'order_online_status' and l.order_online_status <> 'button_live')) then 'Button'
+         when l.status = 'no' or l.event_attribute = 'status' then 'Disabled'
+         ELSE 'Other'
+         end as Integration_Type,
+       l.old_value,
+       l.value,
+       l.created_at,
+       l.google_status,
+       l.google_owner,
+       l.order_online_status,
+       l.order_online_owner,
+       l.status
+from lost_row_num l
+where l.rn = 1
+order by 1
+
+
+with clock as
+       (
+         select a.first_name,
+                a.last_name,
+                a.email,
+
+                date(CONVERT_TIMEZONE('UTC', 'Europe/Skopje', ar.clock_in)) as Work_Day
+             ,
+                CONVERT_TIMEZONE('UTC', 'Europe/Skopje', ar.clock_in)       as Clock_In
+             ,
+                CONVERT_TIMEZONE('UTC', 'Europe/Skopje', ar.clock_out)      as Clock_Out
+             ,
+                ar.seconds / 3600::float                                    as Duration,
+                case
+                  when a.roles_mask = 4 then 'DataEntry/Menu'
+                  when a.roles_mask = 1 then 'Account Management'
+                  when a.roles_mask = 2 then 'OP'
+                  when a.roles_mask = 256 then 'Twilio'
+                  when a.roles_mask = 4096 then 'POTT'
+                  when a.roles_mask = 2048 then 'CS'
+                  when a.roles_mask = 8 then 'Sales'
+                  when a.roles_mask = 16 then 'LMT'
+                  when a.roles_mask = 4098 then 'POTT/OP'
+                  else 'Other'
+                  end                                                       as User_Role,
+                a.roles_mask
+         from mypizza.attendance_records ar
+                join mypizza.admins a on ar.admin_id = a.id
+         where date(CONVERT_TIMEZONE('UTC', 'Europe/Skopje', ar.clock_in)) >= '2018-11-01'
+           and a.roles_mask in ('2', '4096', '4098', '2048')
+
+         order by 1, 2, 3, 4
+       )
+select distinct first_name, last_name, email, User_Role
+from clock
+order by 1
+
+
+select count(all_orders.orders_id) as all_orders
+from mypizza.all_orders
+where date_purchased_pst >= '2018-11-01'
+  and date_purchased_pst > '2018-12-07'
+  --and all_orders.source <> 'call'
+  and shop_id not in (select s.shop_id from mypizza.shop_master s where s.status = 'test')
+
+
+select count(orders_id)
+from mypizza.all_orders
+where date_purchased_pst >= '2018-11-01'
+  and date_purchased_pst < '2018-12-07'
+  and source <> 'call'
+  and shop_id not in (select s.shop_id from mypizza.shop_master s where s.status = 'test')
+
+select distinct google_status, shop_id
+from slice_dw.shop_google_status_hist
+where from_incl >'2018-11-1'
+
+select count(shop_id)
+from mypizza.shop_master s
+where s.status = 'yes'
+
+select count(shop_id)
+from dw.shop_master dw
+where dw.status = 'yes'
+  and dw.effective_from >= '2018-12-06'
+  and dw.effective_to < '2018-12-7'
+
+
+-- CS Utilization
+with calls as
+       (
+         SELECT t.user_email,
+                t.type
+             ,
+                sum(t.talk_time) as talktime
+             ,
+                sum(t.hold_time) as holdtime
+             ,
+                count(t.call_id) as countcalls
+         FROM dw.talkdesk_calls t
+         WHERE t.ring_groups LIKE '%customerservice%'
+           AND convert_timezone('US/Pacific', t.start_at) between date_trunc('Month',
+                                                                             convert_timezone('US/Pacific', getdate() - interval '1 Month'))
+           and date_trunc('Month', convert_timezone('US/Pacific', getdate() - interval '0 Month'))
+
+         group by 1,2
+         ORDER BY 1
+       )
+select c.user_email,
+       c.type,
+       c.countcalls,
+       (c.talktime + c.holdtime) / 60::float                total_talktime_min,
+       (c.talktime + c.holdtime) / 60 / c.countcalls::float AHT_min
+from calls c
+WHERE c.type in ('outbound')--('inbound')--,
+order by 2,1
+
+select t.user_email,
+       t.type,
+       t.recording_url
+from dw.talkdesk_calls t
+where t.ring_groups like '%agent%'
+
+--copy on name products
+with copy as (
+  select m.shop_id, p.name, convert_timezone('Europe/Skopje', p.updated_at)
+  from mypizza.product_master p
+          inner join mypizza.shop_master m on m.shop_id = p.shop_id
+  where p.name LIKE '%Copy%'
+    and p.enabled = 1
+    and m.status = 'yes'
+    and p.category_id <> '28484'
+  group by 1,2, 3
+  order by 1 ASC
+)
+select *
+from copy
+
+
+select c.name,
+       pm.categorization_id,
+       pm.category_id,
+       pm.updated_at
+from mypizza.product_master pm
+       join mypizza.categories c on pm.category_id = c.cat_id
+where c.cat_id = '28484'
+
+-- M2M shop IDs
+select s.shop_id
+from mypizza.shop_master s
+where s.acquired = 0
+  and s.status = 'no'
+
+
+--op transmetod
+select date_trunc('day', convert_timezone('America/Los_Angeles', date_purchased)),count(order_id)
+
+from slice_dw.orders
+where shop_transmethod = 'phone'
+  and convert_timezone('America/Los_Angeles', date_purchased) >= '2017-12-17'
+  and convert_timezone('America/Los_Angeles', date_purchased) < '2018-1-1'
+group by 1
+order by 1 asc
+
+-- orders WoW YoY
+with cw as
+       (
+         select placed_via, count(orders_id) as current_week
+         from mypizza.orders
+         where date_purchased between date_trunc('week', getdate() - interval '1 week')
+           and date_trunc('week', getdate() - interval '0 week')
+         group by 1
+       ),
+     pw as (
+       select placed_via, count(orders_id) as prior_week
+       from mypizza
+              .
+              orders
+       where date_purchased between date_trunc('week'
+         , getdate() - interval '2 week')
+         and date_trunc('week'
+           , getdate() - interval '1 week')
+       group by 1
+     ),
+     py as
+       (
+         select placed_via, count(orders_id) as prior_year
+         from mypizza.orders
+         where date_purchased between date_trunc('year', getdate() - interval '1 year')
+           and date_trunc('year', getdate() - interval '0 year')
+         group by 1
+       ),
+     current_y as
+       (
+         select placed_via, count(*) as current_year
+         from mypizza.orders
+         where date_purchased > date_trunc('year', getdate() - interval '0 year')
+         group by 1
+       )
+select cw.placed_via,
+       cw.current_week,
+       pw.prior_week,
+       py.prior_year,
+       current_y.current_year,
+       ((cw.current_week ::float / pw.prior_week ::float)::float - 1)*100 ::float as WoW
+
+from cw
+       left join pw on cw.placed_via = pw.placed_via
+       left join py on cw.placed_via = py.placed_via
+       left join current_y on cw.placed_via = current_y.placed_via
+
+with orders as (
+  select o.placed_via,
+         count(case
+                 when (date_purchased between date_trunc('week', getdate() - interval '1 week')
+                   and date_trunc('week', getdate() - interval '0 week')) then 1
+                 else null end) as current_week,
+         count(case
+                 when (date_purchased between date_trunc('week', getdate() - interval '2 week')
+                   and date_trunc('week', getdate() - interval '1 week')) then 1
+                 else null end) as prior_week
+
+
+  from mypizza.orders o
+  where o.date_purchased >= '2018-01-01'
+  group by 1
+)
+select placed_via, (current_week ::float / prior_week ::float)::float - 1 as WoW
+from orders
+
+
+
+
+
+
